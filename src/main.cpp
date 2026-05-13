@@ -63,26 +63,7 @@ void setup() {
         Serial.println("[SETUP] MQTT connected");
     }
 
-    // 8. Request device twin, wait for response
-    if (requestDeviceTwin()) {
-        t0 = millis();
-        while (!twinReceived && millis() - t0 < 10000) {
-            azure_handle();
-            ledUpdate();
-            delay(50);
-        }
-    }
-
-    // Parse initial twin GET response for resolution
-    char tmpRes[8] = {};
-    long tmpPeriod = 0;
-    if (parseInitialTwin(tmpRes, sizeof(tmpRes), &tmpPeriod)) {
-        if (strlen(tmpRes) > 0) strncpy(camRes, tmpRes, sizeof(camRes) - 1);
-        if (tmpPeriod > 0)      twinPeriod = tmpPeriod;
-    }
-    Serial.printf("[SETUP] Resolution=%s  Period=%lds\n", camRes, twinPeriod);
-
-    // 9. Camera with twin-configured resolution
+    // 8. Camera init
     framesize_t fs = sizeEnum(camRes);
     if (!initCamera(fs)) {
         Serial.println("[SETUP] Camera init FAILED — halt");
@@ -95,9 +76,7 @@ void setup() {
     // 11. Camera capture task on Core 0 (feeds MJPEG stream)
     xTaskCreatePinnedToCore(camTask, "cam", 4096, nullptr, 1, nullptr, 0);
 
-    // 12. Report initial twin state
-    reportDeviceTwin(camRes, twinPeriod, 0, twinSdWrite);
-
+    // 10. Ready
     setLedMode(LED_CONNECTED);
     Serial.print("[SETUP] Ready — Web GUI at http://");
     Serial.println(WiFi.localIP());
@@ -165,29 +144,8 @@ void loop() {
         return;
     }
 
-    // Process MQTT URCs (twin PATCH, C2D messages)
+    // Process MQTT URCs
     azure_handle();
-
-    // Check for device twin desired property updates
-    char newRes[8] = {};
-    long newPeriod = 0;
-    if (checkTwinUpdate(newRes, sizeof(newRes), &newPeriod)) {
-        if (strlen(newRes) > 0 && strcmp(newRes, camRes) != 0) {
-            strncpy(camRes, newRes, sizeof(camRes) - 1);
-            Serial.printf("[LOOP] Twin resolution -> %s\n", camRes);
-            if (xSemaphoreTake(camMutex, pdMS_TO_TICKS(1000))) {
-                framesize_t fs = sizeEnum(camRes);
-                pendingSize = fs;
-                pendingChange = true;
-                strncpy(curSizeName, camRes, sizeof(curSizeName) - 1);
-                xSemaphoreGive(camMutex);
-            }
-        }
-        if (newPeriod > 0 && newPeriod != twinPeriod) {
-            twinPeriod = newPeriod;
-            Serial.printf("[LOOP] Twin period -> %ld\n", twinPeriod);
-        }
-    }
 
     // Retry time sync if needed
     timesync_check_resync();

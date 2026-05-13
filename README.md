@@ -123,28 +123,11 @@ WiFi (STA) ──► Local web server (HTTP :80 + WebSocket :81)
 
 Cellular ────► Azure IoT Hub
   (SIM7670G)    ├── MQTT D2C telemetry (raw AT+CMQTT*)
-                ├── Blob upload (raw AT+HTTP* PUT)
-                └── Device twin (GET / PATCH / report)
+                └── Blob upload (raw AT+HTTP* PUT)
 ```
 
 WiFi is used exclusively for the local dashboard. All cloud communication
 goes through the cellular modem — the ESP32's WiFi never touches Azure.
-
-### Device Twin
-
-The firmware syncs with Azure IoT Hub device twins on startup and monitors
-for PATCH notifications. Supported desired properties:
-
-```json
-{
-  "resolution": "HD",
-  "period": 5,
-  "sd_write": "on"
-}
-```
-
-`resolution` changes apply immediately to the camera. `period` controls the
-capture interval in headless mode. `sd_write` toggles SD card saving.
 
 ## License
 
